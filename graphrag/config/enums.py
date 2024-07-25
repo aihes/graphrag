@@ -110,6 +110,11 @@ class LLMType(str, Enum):
     # Debug
     StaticResponse = "static_response"
 
+    Qwen="qwen"
+    QwenChat="qwen_chat"
+
+    QwenEmbedding="qwen_embedding"
+
     def __repr__(self):
         """Get a string representation."""
         return f'"{self.value}"'

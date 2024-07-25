@@ -23,6 +23,8 @@ from graphrag.llm import (
     create_openai_embedding_llm,
     create_tpm_rpm_limiters,
 )
+from graphrag.llm.qwen.qwen_completion_llm import QwenCompletionLLM
+from graphrag.llm.qwen.qwen_embeding_llm import QwenEmbeddingsLLM
 
 if TYPE_CHECKING:
     from datashaper import VerbCallbacks
@@ -62,12 +64,12 @@ def load_llm(
 
 
 def load_llm_embeddings(
-    name: str,
-    llm_type: LLMType,
-    callbacks: VerbCallbacks,
-    cache: PipelineCache | None,
-    llm_config: dict[str, Any] | None = None,
-    chat_only=False,
+        name: str,
+        llm_type: LLMType,
+        callbacks: VerbCallbacks,
+        cache: PipelineCache | None,
+        llm_config: dict[str, Any] | None = None,
+        chat_only=False,
 ) -> EmbeddingLLM:
     """Load the LLM for the entity extraction chain."""
     on_error = _create_error_handler(callbacks)
@@ -86,9 +88,9 @@ def load_llm_embeddings(
 
 def _create_error_handler(callbacks: VerbCallbacks) -> ErrorHandlerFn:
     def on_error(
-        error: BaseException | None = None,
-        stack: str | None = None,
-        details: dict | None = None,
+            error: BaseException | None = None,
+            stack: str | None = None,
+            details: dict | None = None,
     ) -> None:
         callbacks.error("Error Invoking LLM", error, stack, details)
 
@@ -96,10 +98,10 @@ def _create_error_handler(callbacks: VerbCallbacks) -> ErrorHandlerFn:
 
 
 def _load_openai_completion_llm(
-    on_error: ErrorHandlerFn,
-    cache: LLMCache,
-    config: dict[str, Any],
-    azure=False,
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        config: dict[str, Any],
+        azure=False,
 ):
     return _create_openai_completion_llm(
         OpenAIConfiguration({
@@ -120,10 +122,10 @@ def _load_openai_completion_llm(
 
 
 def _load_openai_chat_llm(
-    on_error: ErrorHandlerFn,
-    cache: LLMCache,
-    config: dict[str, Any],
-    azure=False,
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        config: dict[str, Any],
+        azure=False,
 ):
     return _create_openai_chat_llm(
         OpenAIConfiguration({
@@ -144,11 +146,32 @@ def _load_openai_chat_llm(
     )
 
 
+def _load_qwen_llm(
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        config: dict[str, Any],
+        azure=False,
+):
+    log.info(f"Loading Qwen completion LLM with config {config}")
+    return QwenCompletionLLM(config)
+
+
+
+def _load_qwen_embeddings_llm(
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        config: dict[str, Any],
+        azure=False,
+):
+    log.info(f"Loading Qwen embeddings LLM with config {config}")
+    return QwenEmbeddingsLLM(config);
+
+
 def _load_openai_embeddings_llm(
-    on_error: ErrorHandlerFn,
-    cache: LLMCache,
-    config: dict[str, Any],
-    azure=False,
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        config: dict[str, Any],
+        azure=False,
 ):
     # TODO: Inject Cache
     return _create_openai_embeddings_llm(
@@ -166,19 +189,19 @@ def _load_openai_embeddings_llm(
 
 
 def _load_azure_openai_completion_llm(
-    on_error: ErrorHandlerFn, cache: LLMCache, config: dict[str, Any]
+        on_error: ErrorHandlerFn, cache: LLMCache, config: dict[str, Any]
 ):
     return _load_openai_completion_llm(on_error, cache, config, True)
 
 
 def _load_azure_openai_chat_llm(
-    on_error: ErrorHandlerFn, cache: LLMCache, config: dict[str, Any]
+        on_error: ErrorHandlerFn, cache: LLMCache, config: dict[str, Any]
 ):
     return _load_openai_chat_llm(on_error, cache, config, True)
 
 
 def _load_azure_openai_embeddings_llm(
-    on_error: ErrorHandlerFn, cache: LLMCache, config: dict[str, Any]
+        on_error: ErrorHandlerFn, cache: LLMCache, config: dict[str, Any]
 ):
     return _load_openai_embeddings_llm(on_error, cache, config, True)
 
@@ -205,7 +228,7 @@ def _get_base_config(config: dict[str, Any]) -> dict[str, Any]:
 
 
 def _load_static_response(
-    _on_error: ErrorHandlerFn, _cache: PipelineCache, config: dict[str, Any]
+        _on_error: ErrorHandlerFn, _cache: PipelineCache, config: dict[str, Any]
 ) -> CompletionLLM:
     return MockCompletionLLM(config.get("responses", []))
 
@@ -239,14 +262,26 @@ loaders = {
         "load": _load_static_response,
         "chat": False,
     },
+    LLMType.Qwen: {
+        "load": _load_qwen_llm,
+        "chat": False,
+    },
+    LLMType.QwenChat: {
+        "load": _load_qwen_llm,
+        "chat": True,
+    },
+    LLMType.QwenEmbedding: {
+        "load": _load_qwen_embeddings_llm,
+        "chat": False,
+    },
 }
 
 
 def _create_openai_chat_llm(
-    configuration: OpenAIConfiguration,
-    on_error: ErrorHandlerFn,
-    cache: LLMCache,
-    azure=False,
+        configuration: OpenAIConfiguration,
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        azure=False,
 ) -> CompletionLLM:
     """Create an openAI chat llm."""
     client = create_openai_client(configuration=configuration, azure=azure)
@@ -258,10 +293,10 @@ def _create_openai_chat_llm(
 
 
 def _create_openai_completion_llm(
-    configuration: OpenAIConfiguration,
-    on_error: ErrorHandlerFn,
-    cache: LLMCache,
-    azure=False,
+        configuration: OpenAIConfiguration,
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        azure=False,
 ) -> CompletionLLM:
     """Create an openAI completion llm."""
     client = create_openai_client(configuration=configuration, azure=azure)
@@ -273,10 +308,10 @@ def _create_openai_completion_llm(
 
 
 def _create_openai_embeddings_llm(
-    configuration: OpenAIConfiguration,
-    on_error: ErrorHandlerFn,
-    cache: LLMCache,
-    azure=False,
+        configuration: OpenAIConfiguration,
+        on_error: ErrorHandlerFn,
+        cache: LLMCache,
+        azure=False,
 ) -> EmbeddingLLM:
     """Create an openAI embeddings llm."""
     client = create_openai_client(configuration=configuration, azure=azure)

@@ -18,8 +18,11 @@ from graphrag.model import (
     TextUnit,
 )
 from graphrag.query.context_builder.entity_extraction import EntityVectorStoreKey
+from graphrag.query.llm.base import BaseTextEmbedding, BaseLLM
 from graphrag.query.llm.oai.chat_openai import ChatOpenAI
 from graphrag.query.llm.oai.embedding import OpenAIEmbedding
+from graphrag.query.llm.qwen.qwen import DashscopeGenerationLLM
+from graphrag.query.llm.qwen.qwen_embeding import DashscopeEmbedding
 from graphrag.query.llm.oai.typing import OpenaiApiType
 from graphrag.query.structured_search.global_search.community_context import (
     GlobalCommunityContext,
@@ -32,11 +35,11 @@ from graphrag.query.structured_search.local_search.search import LocalSearch
 from graphrag.vector_stores import BaseVectorStore
 
 
-def get_llm(config: GraphRagConfig) -> ChatOpenAI:
+def get_llm(config: GraphRagConfig) -> BaseLLM:
     """Get the LLM client."""
     is_azure_client = (
-        config.llm.type == LLMType.AzureOpenAIChat
-        or config.llm.type == LLMType.AzureOpenAI
+            config.llm.type == LLMType.AzureOpenAIChat
+            or config.llm.type == LLMType.AzureOpenAI
     )
     debug_llm_key = config.llm.api_key or ""
     llm_debug_info = {
@@ -48,6 +51,16 @@ def get_llm(config: GraphRagConfig) -> ChatOpenAI:
     else:
         cognitive_services_endpoint = config.llm.cognitive_services_endpoint
     print(f"creating llm client with {llm_debug_info}")  # noqa T201
+
+    if config.llm.type == LLMType.Qwen:
+        return DashscopeGenerationLLM(
+            api_key=config.llm.api_key,
+            model=config.llm.model,
+            max_retries=config.llm.max_retries,
+        )
+
+
+
     return ChatOpenAI(
         api_key=config.llm.api_key,
         azure_ad_token_provider=(
@@ -58,7 +71,6 @@ def get_llm(config: GraphRagConfig) -> ChatOpenAI:
             else None
         ),
         api_base=config.llm.api_base,
-        organization=config.llm.organization,
         model=config.llm.model,
         api_type=OpenaiApiType.AzureOpenAI if is_azure_client else OpenaiApiType.OpenAI,
         deployment_name=config.llm.deployment_name,
@@ -67,7 +79,7 @@ def get_llm(config: GraphRagConfig) -> ChatOpenAI:
     )
 
 
-def get_text_embedder(config: GraphRagConfig) -> OpenAIEmbedding:
+def get_text_embedder(config: GraphRagConfig) -> BaseTextEmbedding:
     """Get the LLM client for embeddings."""
     is_azure_client = config.embeddings.llm.type == LLMType.AzureOpenAIEmbedding
     debug_embedding_api_key = config.embeddings.llm.api_key or ""
@@ -80,6 +92,19 @@ def get_text_embedder(config: GraphRagConfig) -> OpenAIEmbedding:
     else:
         cognitive_services_endpoint = config.embeddings.llm.cognitive_services_endpoint
     print(f"creating embedding llm client with {llm_debug_info}")  # noqa T201
+
+    # return load_llm_embeddings(
+    #     "embedding",
+    #     config.embeddings.llm.type,
+    #     llm_config=config.embeddings.llm,
+    # )
+    if config.embeddings.llm.type == LLMType.QwenEmbedding:
+        return DashscopeEmbedding(
+            api_key=config.embeddings.llm.api_key,
+            model=config.embeddings.llm.model,
+            max_retries=config.embeddings.llm.max_retries
+        )
+
     return OpenAIEmbedding(
         api_key=config.embeddings.llm.api_key,
         azure_ad_token_provider=(
@@ -90,7 +115,6 @@ def get_text_embedder(config: GraphRagConfig) -> OpenAIEmbedding:
             else None
         ),
         api_base=config.embeddings.llm.api_base,
-        organization=config.llm.organization,
         api_type=OpenaiApiType.AzureOpenAI if is_azure_client else OpenaiApiType.OpenAI,
         model=config.embeddings.llm.model,
         deployment_name=config.embeddings.llm.deployment_name,
@@ -100,14 +124,14 @@ def get_text_embedder(config: GraphRagConfig) -> OpenAIEmbedding:
 
 
 def get_local_search_engine(
-    config: GraphRagConfig,
-    reports: list[CommunityReport],
-    text_units: list[TextUnit],
-    entities: list[Entity],
-    relationships: list[Relationship],
-    covariates: dict[str, list[Covariate]],
-    response_type: str,
-    description_embedding_store: BaseVectorStore,
+        config: GraphRagConfig,
+        reports: list[CommunityReport],
+        text_units: list[TextUnit],
+        entities: list[Entity],
+        relationships: list[Relationship],
+        covariates: dict[str, list[Covariate]],
+        response_type: str,
+        description_embedding_store: BaseVectorStore,
 ) -> LocalSearch:
     """Create a local search engine based on data + configuration."""
     llm = get_llm(config)
@@ -125,16 +149,16 @@ def get_local_search_engine(
             relationships=relationships,
             covariates=covariates,
             entity_text_embeddings=description_embedding_store,
-            embedding_vectorstore_key=EntityVectorStoreKey.ID,  # if the vectorstore uses entity title as ids, set this to EntityVectorStoreKey.TITLE
+            embedding_vectorstore_key=EntityVectorStoreKey.ID,
+            # if the vectorstore uses entity title as ids, set this to EntityVectorStoreKey.TITLE
             text_embedder=text_embedder,
             token_encoder=token_encoder,
         ),
         token_encoder=token_encoder,
         llm_params={
-            "max_tokens": ls_config.llm_max_tokens,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000=1500)
-            "temperature": ls_config.temperature,
-            "top_p": ls_config.top_p,
-            "n": ls_config.n,
+            "max_tokens": ls_config.llm_max_tokens,
+            # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000=1500)
+            "temperature": 0.0,
         },
         context_builder_params={
             "text_unit_prop": ls_config.text_unit_prop,
@@ -147,18 +171,20 @@ def get_local_search_engine(
             "include_relationship_weight": True,
             "include_community_rank": False,
             "return_candidate_context": False,
-            "embedding_vectorstore_key": EntityVectorStoreKey.ID,  # set this to EntityVectorStoreKey.TITLE if the vectorstore uses entity title as ids
-            "max_tokens": ls_config.max_tokens,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
+            "embedding_vectorstore_key": EntityVectorStoreKey.ID,
+            # set this to EntityVectorStoreKey.TITLE if the vectorstore uses entity title as ids
+            "max_tokens": ls_config.max_tokens,
+            # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
         },
         response_type=response_type,
     )
 
 
 def get_global_search_engine(
-    config: GraphRagConfig,
-    reports: list[CommunityReport],
-    entities: list[Entity],
-    response_type: str,
+        config: GraphRagConfig,
+        reports: list[CommunityReport],
+        entities: list[Entity],
+        response_type: str,
 ):
     """Create a global search engine based on data + configuration."""
     token_encoder = tiktoken.get_encoding(config.encoding_model)
